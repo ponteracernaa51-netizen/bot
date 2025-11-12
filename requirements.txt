@@ -2,7 +2,7 @@
 python-telegram-bot==22.5
 
 # PostgreSQL async pool
-psycopg[binary]==3.5.2
+psycopg[binary]==3.2.12
 psycopg-pool==3.2.7
 
 # Работа с .env
