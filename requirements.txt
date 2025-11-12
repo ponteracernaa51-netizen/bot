@@ -1,6 +1,16 @@
-python-telegram-bot
-psycopg-pool
-python-dotenv
-google-generativeai
-Flask
-gunicorn
+# Telegram bot
+python-telegram-bot==22.5
+
+# PostgreSQL async pool
+psycopg[binary]==3.5.2
+psycopg-pool==3.2.7
+
+# Работа с .env
+python-dotenv==1.2.1
+
+# Google Generative AI
+google-generativeai==0.8.5
+
+# Веб-фреймворк (если нужен для webhook или других целей)
+Flask==3.1.2
+gunicorn==23.0.0
