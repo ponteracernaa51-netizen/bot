@@ -1,16 +1,13 @@
-# Telegram bot
-python-telegram-bot==22.5
+# requirements.txt
 
-# PostgreSQL async pool
-psycopg[binary]==3.2.12
-psycopg-pool==3.2.7
+# Основная библиотека для работы с Telegram
+python-telegram-bot
 
-# Работа с .env
-python-dotenv==1.2.1
+# Для асинхронной работы с базой данных PostgreSQL
+psycopg-pool
 
-# Google Generative AI
-google-generativeai==0.8.5
+# Для загрузки переменных окружения (полезно для локального запуска)
+python-dotenv
 
-# Веб-фреймворк (если нужен для webhook или других целей)
-Flask==3.1.2
-gunicorn==23.0.0
+# Для работы с API Gemini
+google-generativeai
