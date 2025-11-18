@@ -2,58 +2,62 @@
 
 import asyncio
 import logging
-from contextlib import asynccontextmanager
-
 import uvicorn
 from fastapi import FastAPI, Request, Response
 from telegram import Update
 from telegram.ext import Application
 
 from src.core.config import settings
-from bot import setup_bot # Мы создадим этот файл/функцию на следующем шаге
+from bot import setup_bot
 
-# Настройка логирования
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
 logger = logging.getLogger(__name__)
 
-# --- Переменные для вебхука ---
-# URL должен быть вида https://your-app-name.onrender.com
-# Render автоматически предоставит переменную окружения RENDER_EXTERNAL_URL
-WEBHOOK_URL = f"{settings.render_external_url}/{settings.bot_token}"
+# --- Настройка Вебхука ---
 WEBHOOK_PATH = f"/{settings.bot_token}"
+# Render предоставляет RENDER_EXTERNAL_URL автоматически.
+# Если он не задан (локальный запуск), используется значение по умолчанию из config.py
+WEBHOOK_URL = f"{settings.render_external_url.rstrip('/')}{WEBHOOK_PATH}"
 
-
-# --- Создание экземпляров бота и FastAPI ---
-# Создаем приложение бота, но не запускаем его
+# --- Создание экземпляров ---
 ptb_app: Application = setup_bot()
+fastapi_app = FastAPI()
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """
-    Контекстный менеджер для управления жизненным циклом.
-    Выполняется при старте и остановке сервера.
-    """
-    logger.info("Запуск приложения...")
-    # Устанавливаем вебхук при старте
-    await ptb_app.bot.set_webhook(url=WEBHOOK_URL, allowed_updates=Update.ALL_TYPES)
-    logger.info(f"Вебхук установлен на URL: {WEBHOOK_URL}")
-    yield
-    # Отключаем вебхук при остановке
-    logger.info("Остановка приложения...")
+
+@fastapi_app.on_event("startup")
+async def on_startup():
+    """Действия при запуске сервера: установка вебхука."""
+    logger.info(f"Установка вебхука на URL: {WEBHOOK_URL}")
+    await ptb_app.bot.set_webhook(
+        url=WEBHOOK_URL,
+        allowed_updates=Update.ALL_TYPES,
+        secret_token=settings.webhook_secret  # Добавим секрет для безопасности
+    )
+    # Инициализируем приложение PTB
+    await ptb_app.initialize()
+    logger.info("Приложение PTB инициализировано.")
+
+
+@fastapi_app.on_event("shutdown")
+async def on_shutdown():
+    """Действия при остановке сервера: удаление вебхука."""
+    logger.info("Удаление вебхука...")
     await ptb_app.bot.delete_webhook()
-    logger.info("Вебхук удален.")
-
-# Создаем FastAPI приложение с lifespan-менеджером
-fastapi_app = FastAPI(lifespan=lifespan)
+    # Останавливаем приложение PTB
+    await ptb_app.shutdown()
+    logger.info("Приложение PTB остановлено.")
 
 
 @fastapi_app.post(WEBHOOK_PATH)
 async def handle_telegram_update(request: Request):
-    """
-    Принимает обновления от Telegram и передает их в ptb_app.
-    """
+    """Принимает обновления от Telegram."""
+    headers = request.headers
+    # Проверяем секретный токен для безопасности
+    if headers.get("X-Telegram-Bot-Api-Secret-Token") != settings.webhook_secret:
+        return Response(status_code=403)
+        
     body = await request.json()
     update = Update.de_json(data=body, bot=ptb_app.bot)
     await ptb_app.process_update(update)
@@ -62,15 +66,9 @@ async def handle_telegram_update(request: Request):
 
 @fastapi_app.get("/")
 def health_check():
-    """Простая проверка работоспособности, чтобы Render был доволен."""
+    """Проверка работоспособности."""
     return {"status": "ok"}
 
 
 if __name__ == "__main__":
-    # Эта часть для локального тестирования
-    uvicorn.run(
-        "main:fastapi_app",
-        host="0.0.0.0",
-        port=8000,
-        reload=True # Автоматическая перезагрузка при изменениях кода
-    )
+    uvicorn.run("main:fastapi_app", host="0.0.0.0", port=8000, reload=True)
