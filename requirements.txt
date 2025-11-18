@@ -3,9 +3,10 @@
 python-telegram-bot==21.0.1
 python-dotenv
 sqlalchemy[asyncpg]
+asyncpg
 
 # === ДОБАВЬТЕ ЭТУ СТРОКУ ===
-asyncpg
+psycopg2-binary
 # ===========================
 
 alembic
