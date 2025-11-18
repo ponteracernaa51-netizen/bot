@@ -1,14 +1,17 @@
 # requirements.txt
 
+# Бот и веб-сервер
 python-telegram-bot==21.0.1
-python-dotenv
+fastapi
+uvicorn
+
+# База данных
 sqlalchemy[asyncpg]
 asyncpg
-
-# === ДОБАВЬТЕ ЭТУ СТРОКУ ===
 psycopg2-binary
-# ===========================
-
 alembic
+
+# Конфигурация и AI
+python-dotenv
 google-generativeai
 pydantic-settings
