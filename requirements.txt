@@ -1,19 +1,13 @@
 # requirements.txt
 
-# Основная библиотека для создания Telegram-бота
 python-telegram-bot==21.0.1
-
-# Для загрузки переменных окружения из .env файла
 python-dotenv
-
-# ORM для асинхронной работы с PostgreSQL и драйвер
 sqlalchemy[asyncpg]
 
-# Для миграций схемы базы данных
+# === ДОБАВЬТЕ ЭТУ СТРОКУ ===
+asyncpg
+# ===========================
+
 alembic
-
-# Официальный SDK для Google Gemini API
 google-generativeai
-
-# Для управления конфигурацией через .env
 pydantic-settings
