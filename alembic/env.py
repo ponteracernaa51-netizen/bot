@@ -14,26 +14,27 @@ from alembic import context
 from src.db.models import Base
 from src.core.config import settings
 
-
 config = context.config
 
-# ==================== ИСПРАВЛЕНИЕ ОПЕЧАТКИ ЗДЕСЬ ====================
-# Было: if config.config_file_name is not not None:
-# Стало: if config.config_file_name is not None:
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
+
+# ==================== ГЛАВНОЕ ИСПРАВЛЕНИЕ ЗДЕСЬ ====================
+# Получаем асинхронный URL из наших настроек
+async_db_url = settings.database_url
+
+# Для Alembic мы должны использовать СИНХРОННЫЙ URL.
+# Заменяем "postgresql+asyncpg" на "postgresql".
+sync_db_url = async_db_url.replace("postgresql+asyncpg", "postgresql")
+
+# Устанавливаем этот синхронный URL для Alembic.
+config.set_main_option('sqlalchemy.url', sync_db_url)
 # =================================================================
-
-
-if settings.database_url:
-    config.set_main_option('sqlalchemy.url', str(settings.database_url))
-
 
 target_metadata = Base.metadata
 
-
 def run_migrations_offline() -> None:
-    """Run migrations in 'offline' mode."""
+    # ... (эта функция остается без изменений)
     url = config.get_main_option("sqlalchemy.url")
     context.configure(
         url=url,
@@ -41,7 +42,6 @@ def run_migrations_offline() -> None:
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
     )
-
     with context.begin_transaction():
         context.run_migrations()
 
