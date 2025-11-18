@@ -1,69 +1,51 @@
 # alembic/env.py
 
-# --- ДОБАВЛЕН БЛОК ДЛЯ ЗАГРУЗКИ ПЕРЕМЕННЫХ ОКРУЖЕНИЯ ---
-# Это должно быть в самом верху, чтобы все последующие импорты
-# уже видели переменные окружения.
+# ==================== НАЧАЛО ВАЖНОГО ИЗМЕНЕНИЯ ====================
 import os
-from dotenv import load_dotenv
-load_dotenv()
-# --------------------------------------------------------
+import sys
+
+# Добавляем корневую директорию проекта (на один уровень выше папки alembic)
+# в системные пути Python. Это необходимо, чтобы Alembic мог найти
+# модуль `src` при запуске из любой директории.
+sys.path.insert(0, os.path.realpath(os.path.join(os.path.dirname(__file__), '..')))
+# ===================== КОНЕЦ ВАЖНОГО ИЗМЕНЕНИЯ =====================
+
 
 from logging.config import fileConfig
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 from alembic import context
 
-# --- ИЗМЕНЕНИЯ ЗДЕСЬ ---
-# 1. Импортируем базовую модель SQLAlchemy из нашего проекта,
-#    чтобы Alembic мог автоматически генерировать миграции.
+# Импортируем нашу базовую модель SQLAlchemy,
+# чтобы Alembic знал о структуре таблиц.
 from src.db.models import Base
 
-# 2. Импортируем наши настройки, чтобы получить URL базы данных.
+# Импортируем наши настройки, чтобы получить URL базы данных.
 from src.core.config import settings
-# -------------------------
 
 
-# this is the Alembic Config object, which provides
-# access to the values within the .ini file in use.
+# Это объект конфигурации Alembic, который предоставляет
+# доступ к значениям из файла .ini.
 config = context.config
 
-# Interpret the config file for Python logging.
-# This line sets up loggers basically.
-if config.config_file_name is not None:
+# Интерпретируем файл конфигурации для логирования Python.
+if config.config_file_name is not not None:
     fileConfig(config.config_file_name)
 
-# --- ИЗМЕНЕНИЯ ЗДЕСЬ ---
-# 3. Явно устанавливаем опцию sqlalchemy.url, используя
-#    URL из наших настроек (которые были загружены из .env или переменных окружения).
-#    Это делает `alembic.ini` независимым от переменных окружения напрямую.
+# Явно устанавливаем опцию sqlalchemy.url, используя
+# URL из наших настроек (которые были загружены из .env или переменных окружения).
 if settings.database_url:
     config.set_main_option('sqlalchemy.url', settings.database_url)
-# -------------------------
 
 
-# add your model's MetaData object here
-# for 'autogenerate' support
-# from myapp import mymodel
-# target_metadata = mymodel.Base.metadata
+# Добавляем метаданные нашей модели для поддержки автогенерации.
 target_metadata = Base.metadata
-
-# other values from the config, defined by the needs of env.py,
-# can be acquired:
-# my_important_option = config.get_main_option("my_important_option")
-# ... etc.
 
 
 def run_migrations_offline() -> None:
-    """Run migrations in 'offline' mode.
-
-    This configures the context with just a URL
-    and not an Engine, though an Engine is acceptable
-    here as well.  By skipping the Engine creation
-    we don't even need a DBAPI to be available.
-
-    Calls to context.execute() here emit the given string to the
-    script output.
-
+    """Запускает миграции в 'оффлайн' режиме.
+    
+    Этот режим используется для генерации SQL-скриптов без подключения к БД.
     """
     url = config.get_main_option("sqlalchemy.url")
     context.configure(
@@ -78,11 +60,10 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
-    """Run migrations in 'online' mode.
-
-    In this scenario we need to create an Engine
-    and associate a connection with the context.
-
+    """Запускает миграции в 'онлайн' режиме.
+    
+    В этом сценарии нам нужно создать Engine
+    и связать соединение с контекстом.
     """
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
