@@ -6,21 +6,16 @@ analyzed for detailed error feedback, but it does not affect the score.
 """
 
 import asyncio
-import json
 import logging
 import re
 from dataclasses import dataclass
-from functools import lru_cache
 from html import escape
-from math import sqrt
 
 import httpx
 
 from config import (
     AI_TIMEOUT,
     GROQ_API_KEY,
-    SEMANTIC_CACHE_SIZE,
-    SEMANTIC_MODEL,
     TOGETHER_API_KEY,
 )
 
@@ -113,70 +108,41 @@ def _lexical_similarity(left: str, right: str) -> float:
         return 100.0 * len(left_tokens & right_tokens) / len(left_tokens | right_tokens)
 
 
-@lru_cache(maxsize=SEMANTIC_CACHE_SIZE)
-def _cached_sentence_embedding(text: str) -> tuple[float, ...] | None:
-    try:
-        from sentence_transformers import SentenceTransformer
-    except Exception:
-        return None
-
-    model = _get_sentence_model()
-    if model is None:
-        return None
-    vector = model.encode(text, normalize_embeddings=True)
-    return tuple(float(x) for x in vector)
-
-
-@lru_cache(maxsize=1)
-def _get_sentence_model():
-    try:
-        from sentence_transformers import SentenceTransformer
-
-        return SentenceTransformer(SEMANTIC_MODEL)
-    except Exception as e:
-        logger.warning("semantic_model_unavailable: %s", e)
-        return None
-
-
-def _cosine(left: tuple[float, ...], right: tuple[float, ...]) -> float:
-    numerator = sum(a * b for a, b in zip(left, right))
-    left_norm = sqrt(sum(a * a for a in left))
-    right_norm = sqrt(sum(b * b for b in right))
-    if not left_norm or not right_norm:
-        return 0.0
-    return numerator / (left_norm * right_norm)
-
-
 def _semantic_score(user_answer: str, references: list[str]) -> float:
-    lexical = max(_lexical_similarity(user_answer, ref) for ref in references)
-    user_embedding = _cached_sentence_embedding(_normalize(user_answer))
-    reference_embeddings = [
-        embedding
-        for ref in references
-        if (embedding := _cached_sentence_embedding(_normalize(ref))) is not None
-    ]
-    if user_embedding is None or not reference_embeddings:
-        return lexical
-
-    semantic = max(_cosine(user_embedding, ref) for ref in reference_embeddings)
-    semantic_score = max(0.0, min(100.0, semantic * 100.0))
-    return max(lexical, semantic_score)
+    """Pure lexical similarity via rapidfuzz — fast, no external downloads."""
+    return max(_lexical_similarity(user_answer, ref) for ref in references)
 
 
-@lru_cache(maxsize=1)
+_language_tool = None
+_language_tool_loading = False
+_language_tool_loaded = False
+
 def _get_language_tool():
+    global _language_tool, _language_tool_loading, _language_tool_loaded
+    if _language_tool_loaded:
+        return _language_tool
+    if _language_tool_loading:
+        return None
+
     import shutil
     if not shutil.which("java"):
         logger.warning("LanguageTool disabled: Java runtime (java) is not installed or not in PATH.")
+        _language_tool_loaded = True
         return None
 
+    _language_tool_loading = True
     try:
         import language_tool_python
 
-        return language_tool_python.LanguageTool("en-US")
+        _language_tool = language_tool_python.LanguageTool("en-US")
+        _language_tool_loaded = True
     except Exception as e:
         logger.warning("language_tool_unavailable: %s", e)
-        return None
+        _language_tool_loaded = True
+    finally:
+        _language_tool_loading = False
+
+    return _language_tool
 
 
 def _grammar_score(user_answer: str, reference: str, level: str) -> tuple[float, list[str]]:
@@ -366,13 +332,7 @@ def _apply_tense_and_capitalization_penalties(
 
 
 def preload_models():
-    """Pre-load and cache semantic model and language tool helper."""
-    logger.info("Pre-loading semantic model (sentence-transformers)...")
-    try:
-        _get_sentence_model()
-    except Exception as e:
-        logger.warning("Failed pre-loading semantic model: %s", e)
-
+    """Warm up the language tool (Java-based) if available. No-op otherwise."""
     logger.info("Pre-loading language tool...")
     try:
         _get_language_tool()

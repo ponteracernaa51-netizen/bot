@@ -78,13 +78,17 @@ def create_app():
             "🚀 BOT STARTING"
         )
 
-        try:
-            from services.checker import preload_models
-            preload_models()
-        except Exception as e:
-            logging.warning(
-                f"Failed to preload models during startup: {e}"
-            )
+        import asyncio
+        async def bg_preload():
+            try:
+                from services.checker import preload_models
+                await asyncio.to_thread(preload_models)
+            except Exception as e:
+                logging.warning(
+                    f"Failed to preload models in background: {e}"
+                )
+
+        asyncio.create_task(bg_preload())
 
 
         render_url = os.getenv(
